@@ -2,8 +2,9 @@ import asyncio
 import json
 import time
 
+
 class ExtensionTab:
-    def __init__(self, websocket, tabId = None, state = None):
+    def __init__(self, websocket, tabId=None, state=None):
         self.websocket = websocket
         self.tabId = tabId
         self.state = state
@@ -30,7 +31,8 @@ class ExtensionTab:
                 "message": message
             })
             if len(clients) > 0:
-                await asyncio.wait([client_socket.send(client_msg) for client_socket in clients])
+                await asyncio.wait([client_socket.send(client_msg)
+                                    for client_socket in clients])
 
         if subject == "state":
             self.state = message

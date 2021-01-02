@@ -13,12 +13,14 @@ logging.basicConfig()
 clients = set()
 extension_tabs = {}
 
+
 async def register_client(websocket):
     clients.add(websocket)
 
 
 async def unregister_client(websocket):
     clients.remove(websocket)
+
 
 def get_extension_tab():
     first_tab_id = None
@@ -31,6 +33,7 @@ def get_extension_tab():
         return extension_tabs[first_tab_id]
     return None
 
+
 async def handle_client_message(websocket, message):
     if not message or not websocket:
         return
@@ -38,7 +41,10 @@ async def handle_client_message(websocket, message):
     extension_tab = get_extension_tab()
 
     if message.get("action", None) == "getState":
-        await websocket.send(json.dumps({"subject": "state", "message": extension_tab.state if extension_tab else None}))
+        await websocket.send(json.dumps({
+            "subject": "state",
+            "message": extension_tab.state if extension_tab else None
+        }))
     elif message.get("action", None) == "openGoogleMeetInBrowser":
         if not extension_tab:
             webbrowser.open("https://meet.google.com/")
@@ -54,7 +60,9 @@ async def extension_prune_inactive():
         current_time = time.time()
         to_prune = []
         for tab_id in extension_tabs:
-            if extension_tabs[tab_id].websocket is None and (current_time - extension_tabs[tab_id].last_message_timestamp) > 30.0:
+            if extension_tabs[tab_id].websocket is None and \
+                    (current_time -
+                     extension_tabs[tab_id].last_message_timestamp) > 30.0:
                 # inactive tab, remove it
                 to_prune.append(tab_id)
         for tab_id in to_prune:
@@ -65,7 +73,7 @@ async def extension_prune_inactive():
             extension_tab.isPrimary = True
 
 
-async def serve_extension(websocket, path, sender_id = None):
+async def serve_extension(websocket, sender_id=None):
     if sender_id is None:
         return
 
@@ -75,15 +83,16 @@ async def serve_extension(websocket, path, sender_id = None):
         await extension_tabs[sender_id].websocket_opened(websocket)
 
     if len(extension_tabs) == 1:
-            extension_tabs[sender_id].isPrimary = True
+        extension_tabs[sender_id].isPrimary = True
 
     try:
         async for msg in websocket:
             try:
                 data = json.loads(msg)
-                await extension_tabs[sender_id].handle_message(data.get("subject", None),
-                                                               data.get("message", None),
-                                                               clients)
+                await extension_tabs[sender_id].handle_message(
+                    data.get("subject", None),
+                    data.get("message", None), clients
+                )
             except json.JSONDecodeError:
                 logging.error("invalid JSON received, ignoring.")
             except Exception as exp:
@@ -93,7 +102,7 @@ async def serve_extension(websocket, path, sender_id = None):
         await extension_tabs[sender_id].websocket_closed()
 
 
-async def serve_client(websocket, path):
+async def serve_client(websocket):
     await register_client(websocket)
     try:
         async for msg in websocket:
@@ -120,9 +129,9 @@ async def serve_websocket(websocket, path):
 
             msg = data.get("message", None)
             if msg.get("type", None) == "extension":
-                await serve_extension(websocket, path, msg.get("id", None))
+                await serve_extension(websocket, msg.get("id", None))
             elif msg.get("type", None) == "client":
-                await serve_client(websocket, path)
+                await serve_client(websocket)
 
         else:
             await websocket.close()

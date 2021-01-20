@@ -8,10 +8,11 @@ class ExtensionTab:
         self.websocket = websocket
         self.tabId = tabId
         self.state = state
-        self.last_message_timestamp = time.time()
+        self.last_alive_timestamp = time.time()
         self.isPrimary = False
 
     async def websocket_opened(self, websocket):
+        self.last_alive_timestamp = time.time()
         self.websocket = websocket
 
     async def websocket_closed(self):
@@ -23,16 +24,16 @@ class ExtensionTab:
         await self.websocket.send(json.dumps(message))
 
     async def handle_message(self, subject, message, clients):
-        self.last_message_timestamp = time.time()
-
         if self.isPrimary:
             client_msg = json.dumps({
                 "subject": subject,
                 "message": message
             })
             if len(clients) > 0:
-                await asyncio.wait([client_socket.send(client_msg)
-                                    for client_socket in clients])
+                await asyncio.wait([
+                    asyncio.create_task(client_socket.send(client_msg))
+                    for client_socket in clients
+                ])
 
         if subject == "state":
             self.state = message

@@ -62,28 +62,46 @@ async def extension_prune_inactive():
         for tab_id in extension_tabs:
             if extension_tabs[tab_id].websocket is None and \
                     (current_time -
-                     extension_tabs[tab_id].last_message_timestamp) > 30.0:
+                     extension_tabs[tab_id].last_alive_timestamp) > 30.0:
                 # inactive tab, remove it
                 to_prune.append(tab_id)
+            elif extension_tabs[tab_id].websocket is not None:
+                extension_tabs[tab_id].last_alive_timestamp = time.time()
         for tab_id in to_prune:
             extension_tabs.pop(tab_id, None)
 
         extension_tab = get_extension_tab()
         if extension_tab:
             extension_tab.isPrimary = True
+        elif len(to_prune) > 0 and len(clients) > 0:
+            client_msg = json.dumps(
+                {"subject": "extensionDisconnected", "message": None})
+            await asyncio.wait([
+                asyncio.create_task(client_socket.send(client_msg))
+                for client_socket in clients
+            ])
 
 
 async def serve_extension(websocket, sender_id=None):
     if sender_id is None:
         return
 
+    ext_new = False
     if sender_id not in extension_tabs:
+        ext_new = True
         extension_tabs[sender_id] = ExtensionTab(websocket, sender_id)
     else:
         await extension_tabs[sender_id].websocket_opened(websocket)
 
     if len(extension_tabs) == 1:
         extension_tabs[sender_id].isPrimary = True
+        if ext_new and len(clients) > 0:
+            client_msg = json.dumps(
+                {"subject": "extensionConnected", "message": None})
+            await asyncio.wait([
+                asyncio.create_task(client_socket.send(client_msg))
+                for client_socket in clients
+            ])
 
     try:
         async for msg in websocket:
